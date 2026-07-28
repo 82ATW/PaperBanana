@@ -19,7 +19,7 @@ Vanilla Agent - Directly rendering images based on the method section.
 from concurrent.futures import ProcessPoolExecutor
 from typing import Dict, Any
 from google.genai import types
-import base64, io, asyncio, re
+import base64, io, asyncio, re, os
 import matplotlib.pyplot as plt
 from PIL import Image
 
@@ -95,7 +95,7 @@ class VisualizerAgent(BaseAgent):
             self.task_config = {
                 "task_name": "diagram",
                 "use_image_generation": True,  # Use direct image generation
-                "prompt_template": "Render an image based on the following detailed description: {desc}\n Note that do not include figure titles in the image. Diagram: ",
+                "prompt_template": "Render an image based on the following detailed description: {desc}\n Note that do not include figure titles in the image. Draw only what a reader of the finished figure would see: never render element or zone identifiers, coordinates, pixel or point sizes, hex color codes, or aspect-ratio strings as visible text. Reproduce every double-quoted string exactly, character for character; if one cannot be rendered exactly and legibly, omit it rather than abbreviating or truncating it. Diagram: ",
                 "max_output_tokens": 50000,
             }
 
@@ -140,6 +140,18 @@ class VisualizerAgent(BaseAgent):
         
         for desc_key in desc_keys_to_process:
             prompt_text = cfg["prompt_template"].format(desc=data[desc_key])
+            # PAI local addition: persist the assembled render prompt per round
+            # (manual-paste artifact / web-backend handoff input). Never fatal.
+            if data.get("dump_prompt_dir"):
+                try:
+                    from pathlib import Path
+                    _dump_dir = Path(data["dump_prompt_dir"])
+                    _dump_dir.mkdir(parents=True, exist_ok=True)
+                    (_dump_dir / f"{data['filename']}__{desc_key}.txt").write_text(
+                        prompt_text, encoding="utf-8"
+                    )
+                except Exception as _dump_err:
+                    print(f"WARN: --dump-prompt-dir write failed: {_dump_err}")
             content_list = [{"type": "text", "text": prompt_text}]
             
             gen_config_args = {
@@ -189,7 +201,7 @@ class VisualizerAgent(BaseAgent):
                     gen_config_args["response_modalities"] = ["IMAGE"]
                     gen_config_args["image_config"] = types.ImageConfig(
                         aspect_ratio=aspect_ratio,
-                        image_size="1k",
+                        image_size=os.environ.get("PAPERBANANA_IMAGE_SIZE", "1k"),
                     )
                     response_list = await generation_utils.call_gemini_with_retry_async(
                         model_name=self.model_name,
@@ -240,7 +252,15 @@ class VisualizerAgent(BaseAgent):
         return data
 
 
-DIAGRAM_VISUALIZER_AGENT_SYSTEM_PROMPT = """You are an expert scientific diagram illustrator. Generate high-quality scientific diagrams based on user requests."""
+DIAGRAM_VISUALIZER_AGENT_SYSTEM_PROMPT = """You are an expert scientific diagram illustrator. Generate high-quality scientific diagrams based on user requests.
+
+PAI local addition — construction-metadata containment. The description you receive may still contain construction scaffolding left over from a build specification. Scaffolding is never content: draw only what a reader of the finished figure would see.
+
+Do not render as visible text any element or connection identifier (such as "N1", "PR-1", "ME-1", "E12", "Annotation A", "Goal Badge"), any zone/band/column identifier used as scaffolding (such as "Zone 3", "LEFT ZONE", "RIGHT ZONE, UPPER"), any pixel or point size, coordinate, margin, corner radius, opacity value, hex color code, or aspect-ratio string such as "16:9". If the description names an element by an identifier, draw the element and label it with the human-readable text given for it — never with the identifier.
+
+Where the description places a string in double quotes, reproduce that string exactly, character for character, including punctuation and symbols such as the section symbol.
+
+Never shorten a label to make it fit. When a required string is too long for its shape, you have three legal remedies and must use one of them, in this order: (1) wrap the string onto two or three lines inside the same shape, (2) make the shape wider or taller to accommodate the full string, (3) reduce the type size, provided the text stays clearly legible. Abbreviating, truncating, dropping trailing words, or replacing a phrase with a single keyword is NOT permitted — a label reading "Phase 1 - Problem" where the description says "Mission Problem or Opportunity" is a defect, not a fit. Only if all three remedies fail may you omit the string entirely; never approximate it."""
 
 PLOT_VISUALIZER_AGENT_SYSTEM_PROMPT = """You are an expert statistical plot illustrator. Write code to generate high-quality statistical plots based on user requests."""
 

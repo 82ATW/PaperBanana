@@ -129,6 +129,22 @@ To help you understand the task better, and grasp the principles for generating 
 
 ** IMPORTANT: **
 Your description should be as detailed as possible. Semantically, clearly describe each element and their connections. Formally, include various details such as background style (typically pure white or very light pastel), colors, line thickness, icon styles, etc. Remember: vague or unclear specifications will only make the generated figure worse, not better.
+
+** RENDER-SPACE RULE (PAI local addition — construction-metadata containment): **
+Your description is consumed by an image-generation model that DRAWS, as literal visible text, any string it reads. The source material you are given is a construction specification: it contains scaffolding that exists to help a human build and audit the figure, and that scaffolding must NOT survive into your description.
+
+Never carry any of the following into your description, even when the source material uses them as headings or labels:
+- element, node, or connection identifiers (for example "N1", "PR-1", "SP-2", "ME-1", "QB-1", "E12", "Chip 3", "Annotation A", "Goal Badge")
+- zone, band, column, or section identifiers used as organizational scaffolding (for example "Zone 3", "Band 2", "LEFT ZONE", "RIGHT ZONE, UPPER")
+- pixel or point sizes, coordinate values, canvas grid references, margins, corner radii, stroke widths expressed numerically, opacity percentages
+- hex color codes, and aspect-ratio strings such as "16:9"
+- checksum sentences, inventory counts phrased as spec bookkeeping, and any instruction addressed to the renderer rather than describing the picture
+
+Instead: express every position RELATIONALLY ("to the right of", "directly beneath", "spanning the full width along the bottom"), and express every color by NAME ("pale green fill with a bold green border"). Refer to an element by the text a viewer would actually see on it, never by its spec identifier.
+
+Two things you SHOULD keep, because they constrain structure without naming metadata: exact structural counts stated in plain language ("exactly five phase boxes stacked vertically", "exactly six chain boxes in this order"), and every string that must appear on the canvas — put each such string in double quotes so the renderer can distinguish text-to-draw from description-of-layout.
+
+** NEVER COMPRESS A CANVAS STRING: ** reproduce every string that must appear on the canvas in FULL, exactly as the source material gives it, and never shorten it to a keyword for brevity in your own description. If the source material names a step "Mission Problem or Opportunity", your description must carry "Mission Problem or Opportunity" — not "Phase 1 - Problem". Compressing a canvas string in your description guarantees the renderer draws the compressed form, because the renderer can only draw what you give it. If the source material supplies a Text Fidelity Manifest, treat every string it lists as mandatory to carry through verbatim. Where a long string may not fit its shape, say so explicitly and instruct that it wrap onto two lines inside a wider shape — never that it be abbreviated.
 """
 
 PLOT_PLANNER_AGENT_SYSTEM_PROMPT = """
